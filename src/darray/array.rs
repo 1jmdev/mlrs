@@ -27,6 +27,11 @@ impl Array {
         &self.data
     }
 
+    /// Returns mutable access to the flattened storage backing the array.
+    pub fn data_mut(&mut self) -> &mut [f64] {
+        &mut self.data
+    }
+
     /// Returns the row-major shape of the array.
     pub fn shape(&self) -> &[usize] {
         &self.shape

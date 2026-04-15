@@ -1,4 +1,5 @@
 use crate::darray::Array;
+use crate::metrics;
 
 use matrixmultiply::dgemm;
 use rayon::prelude::*;
@@ -6,7 +7,6 @@ use wide::f64x4;
 
 use super::LinearModelError;
 use super::linear_regression::LinearRegression;
-use super::metrics::{mean_r2_score_matrix, r2_score_1d};
 use super::validation::validate_features;
 
 const SIMD_WIDTH: usize = 4;
@@ -38,23 +38,8 @@ impl LinearRegression {
 
     pub fn score(&self, x: &Array, y: &Array) -> Result<f64, LinearModelError> {
         let prediction = self.predict(x)?;
-
-        if prediction.ndim() == 1 {
-            if !y.is_vector() || y.len() != prediction.len() {
-                return Err(LinearModelError::InvalidTargetShape(y.shape().to_vec()));
-            }
-
-            return Ok(r2_score_1d(y, &prediction));
-        }
-
-        if !y.is_matrix()
-            || y.shape()[0] != prediction.shape()[0]
-            || y.shape() != prediction.shape()
-        {
-            return Err(LinearModelError::InvalidTargetShape(y.shape().to_vec()));
-        }
-
-        Ok(mean_r2_score_matrix(y, &prediction))
+        metrics::r2_score(y, &prediction)
+            .map_err(|_| LinearModelError::InvalidTargetShape(y.shape().to_vec()))
     }
 }
 

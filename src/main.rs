@@ -1,25 +1,32 @@
-use mlrs::{darray::np, linear_model::LinearRegression};
-use std::{error::Error, time::Instant};
+use std::error::Error;
+
+use mlrs::darray::Array;
+use mlrs::preprocessing::MaxAbsScaler;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let x = np::array(&[1.0, 2.0, 3.0, 4.0, 5.0]).reshape(&[-1, 1]);
-    let y = np::array(&[2.0, 4.0, 6.0, 8.0, 10.0]);
+    // Data with different scales
+    let x_train =
+        Array::from_shape_vec(&[3, 3], vec![1.0, -5.0, 2.0, 3.0, 0.0, 1.0, 0.0, 2.0, -4.0]);
 
-    let mut model = LinearRegression::new()
-        .epochs(1000)
-        .learning_rate(0.01)
-        .fit_intercept(true);
+    // New data to transform
+    let x_test = Array::from_shape_vec(&[1, 3], vec![6.0, -10.0, 1.0]);
 
-    let start = Instant::now();
-    model.fit(&x, &y)?;
-    println!("Train time: {:?}", start.elapsed());
+    let mut scaler = MaxAbsScaler::new();
 
-    let coefficient = model.coef()?.get(&[0]);
-    println!("Learned multiplier: {coefficient:?}");
+    // Fit on training data only
+    scaler.fit(&x_train)?;
+    println!("Max abs values: {:?}", scaler.max_abs_);
+    println!("Scale factors: {:?}", scaler.scale_);
 
-    let predict_input = np::array(&[7.0]).reshape(&[-1, 1]);
-    let prediction = model.predict(&predict_input)?;
-    println!("Prediction for 7: {:?}", prediction.get(&[0]));
+    // Transform both
+    let x_train_scaled = scaler.transform(&x_train)?;
+    let x_test_scaled = scaler.transform(&x_test)?;
+
+    println!("Train scaled:\n{:?}", x_train_scaled);
+    // [[0.333, -1.0, 0.5], [1.0, 0.0, 0.25], [0.0, 0.4, -1.0]]
+
+    println!("Test scaled: {:?}", x_test_scaled);
+    // [[2.0, -2.0, 0.25]]  (uses train's max values: 6/3=2, -10/5=-2, 1/4=0.25)
 
     Ok(())
 }

@@ -14,6 +14,7 @@ const SIMD_WIDTH: usize = 4;
 const PAR_THRESHOLD: usize = 16_384;
 
 impl LinearRegression {
+    /// Fits the model to a feature matrix and target array.
     pub fn fit(&mut self, x: &Array, y: &Array) -> Result<&mut Self, LinearModelError> {
         validate_features(x)?;
         let prepared_y = prepare_targets(x, y)?;
@@ -30,6 +31,8 @@ impl LinearRegression {
             return Err(LinearModelError::InvalidLearningRate(self.learning_rate));
         }
 
+        // Center the design matrix so the learned coefficients can be combined
+        // with a stable post-hoc intercept term.
         let (x_used, x_offset) = if self.fit_intercept {
             let offset = x.mean_axis(0);
             let centered = x.sub_array(&offset.expand_dims(0));
@@ -50,6 +53,8 @@ impl LinearRegression {
         let coefficients =
             fit_coefficients_gradient_descent(&x_used, &y_used, self.epochs, self.learning_rate);
 
+        // Recover the intercept in the original feature space after fitting on
+        // centered data.
         let intercepts = if self.fit_intercept {
             let weighted_offsets = x_offset.expand_dims(0).matmul(&coefficients).squeeze();
             y_offset.sub_array(&weighted_offsets)
@@ -64,6 +69,7 @@ impl LinearRegression {
         Ok(self)
     }
 
+    /// Returns observed targets minus model predictions.
     pub fn residuals(&self, x: &Array, y: &Array) -> Result<Array, LinearModelError> {
         let prediction = self.predict(x)?;
         let expected = if prediction.ndim() == 1 {
@@ -75,6 +81,7 @@ impl LinearRegression {
     }
 }
 
+/// Fits coefficient columns with batched gradient descent updates.
 fn fit_coefficients_gradient_descent(
     x: &Array,
     y: &Array,
@@ -90,6 +97,7 @@ fn fit_coefficients_gradient_descent(
     let step_size = learning_rate / n_samples as f64;
 
     for _ in 0..epochs {
+        // Compute `X @ coefficients` into a reusable residual buffer.
         unsafe {
             dgemm(
                 n_samples,
@@ -111,6 +119,7 @@ fn fit_coefficients_gradient_descent(
 
         subtract_in_place(&mut residuals, &y.data);
 
+        // Compute `X^T @ residuals` to obtain the full gradient matrix.
         unsafe {
             dgemm(
                 n_features,
@@ -136,6 +145,7 @@ fn fit_coefficients_gradient_descent(
     Array::from_shape_vec(&[n_features, n_targets], coefficients)
 }
 
+/// Subtracts one slice from another in place, parallelizing large inputs.
 fn subtract_in_place(left: &mut [f64], right: &[f64]) {
     if left.len() >= PAR_THRESHOLD {
         left.par_chunks_mut(PAR_THRESHOLD)
@@ -146,6 +156,7 @@ fn subtract_in_place(left: &mut [f64], right: &[f64]) {
     }
 }
 
+/// Subtracts one chunk from another using SIMD where possible.
 fn subtract_in_place_chunk(left: &mut [f64], right: &[f64]) {
     let simd_len = left.len() / SIMD_WIDTH * SIMD_WIDTH;
 
@@ -171,6 +182,7 @@ fn subtract_in_place_chunk(left: &mut [f64], right: &[f64]) {
     }
 }
 
+/// Applies `left -= scale * right`, parallelizing large inputs.
 fn scaled_sub_assign(left: &mut [f64], right: &[f64], scale: f64) {
     if left.len() >= PAR_THRESHOLD {
         left.par_chunks_mut(PAR_THRESHOLD)
@@ -183,6 +195,7 @@ fn scaled_sub_assign(left: &mut [f64], right: &[f64], scale: f64) {
     }
 }
 
+/// Applies `left -= scale * right` to one chunk using SIMD where possible.
 fn scaled_sub_assign_chunk(left: &mut [f64], right: &[f64], scale: f64) {
     let scale_values = f64x4::splat(scale);
     let simd_len = left.len() / SIMD_WIDTH * SIMD_WIDTH;

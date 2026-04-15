@@ -13,6 +13,7 @@ const SIMD_WIDTH: usize = 4;
 const PAR_THRESHOLD: usize = 16_384;
 
 impl LinearRegression {
+    /// Predicts targets for a feature matrix.
     pub fn predict(&self, x: &Array) -> Result<Array, LinearModelError> {
         validate_features(x)?;
         let expected = self.n_features_in_.ok_or(LinearModelError::NotFitted)?;
@@ -36,6 +37,7 @@ impl LinearRegression {
         Ok(prediction)
     }
 
+    /// Returns the coefficient of determination on the provided data.
     pub fn score(&self, x: &Array, y: &Array) -> Result<f64, LinearModelError> {
         let prediction = self.predict(x)?;
         metrics::r2_score(y, &prediction)
@@ -43,6 +45,7 @@ impl LinearRegression {
     }
 }
 
+/// Predicts a single output by taking a SIMD-accelerated dot product per row.
 fn predict_single_target(x: &Array, coefficients: &Array, intercept: f64) -> Array {
     let rows = x.shape()[0];
     let cols = x.shape()[1];
@@ -65,6 +68,7 @@ fn predict_single_target(x: &Array, coefficients: &Array, intercept: f64) -> Arr
     Array::from_shape_vec(&[rows], data)
 }
 
+/// Predicts multiple outputs with one matrix multiplication and a broadcast add.
 fn predict_multi_target(x: &Array, coefficients: &Array, intercepts: &Array) -> Array {
     let rows = x.shape()[0];
     let shared = x.shape()[1];
@@ -107,6 +111,7 @@ fn predict_multi_target(x: &Array, coefficients: &Array, intercepts: &Array) -> 
     Array::from_shape_vec(&[rows, cols], data)
 }
 
+/// Computes a dot product using SIMD for the aligned prefix.
 fn dot_simd(left: &[f64], right: &[f64]) -> f64 {
     let simd_len = left.len() / SIMD_WIDTH * SIMD_WIDTH;
     let mut accum = f64x4::splat(0.0);

@@ -78,20 +78,8 @@ impl<'a> RegressionContext<'a> {
             .map_or(1.0, |weights| weights.data()[sample])
     }
 
-    /// Computes a weighted mean over samples for one output column.
-    pub(crate) fn weighted_average<F>(&self, output: usize, mut value_fn: F) -> f64
-    where
-        F: FnMut(usize, usize) -> f64,
-    {
-        let mut numerator = 0.0;
-        let mut denominator = 0.0;
-
-        for sample in 0..self.samples {
-            let weight = self.sample_weight(sample);
-            numerator += weight * value_fn(sample, output);
-            denominator += weight;
-        }
-
-        numerator / denominator
+    /// Returns the validated sample-weight slice when present.
+    pub(crate) fn sample_weights(&self) -> Option<&[f64]> {
+        self.sample_weight.map(Array::data)
     }
 }

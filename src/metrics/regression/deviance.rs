@@ -89,61 +89,114 @@ pub fn mean_tweedie_deviance_with_options(
 
 /// Computes one mean pinball loss value per output column.
 fn per_output_pinball_values(context: &RegressionContext<'_>, alpha: f64) -> Vec<f64> {
-    (0..context.outputs)
-        .map(|output| {
-            context.weighted_average(output, |sample, column| {
-                let delta = context.y_true_at(sample, column) - context.y_pred_at(sample, column);
-                if delta >= 0.0 {
-                    alpha * delta
-                } else {
-                    (alpha - 1.0) * delta
-                }
-            })
-        })
-        .collect::<Vec<_>>()
+    let y_true = context.y_true.data();
+    let y_pred = context.y_pred.data();
+    let mut numerators = vec![0.0; context.outputs];
+    let mut denominators = vec![0.0; context.outputs];
+    let weights = context.sample_weights();
+
+    for sample in 0..context.samples {
+        let weight = weights.map_or(1.0, |values| values[sample]);
+        let offset = sample * context.outputs;
+        for output in 0..context.outputs {
+            let delta = y_true[offset + output] - y_pred[offset + output];
+            let value = if delta >= 0.0 {
+                alpha * delta
+            } else {
+                (alpha - 1.0) * delta
+            };
+            numerators[output] += weight * value;
+            denominators[output] += weight;
+        }
+    }
+
+    numerators
+        .into_iter()
+        .zip(denominators)
+        .map(|(numerator, denominator)| numerator / denominator)
+        .collect()
 }
 
 /// Computes one mean Poisson deviance value per output column.
 fn per_output_poisson_values(context: &RegressionContext<'_>) -> Vec<f64> {
-    (0..context.outputs)
-        .map(|output| {
-            context.weighted_average(output, |sample, column| {
-                let true_value = context.y_true_at(sample, column);
-                let pred_value = context.y_pred_at(sample, column);
-                if true_value == 0.0 {
-                    2.0 * pred_value
-                } else {
-                    2.0 * (true_value * (true_value / pred_value).ln() - true_value + pred_value)
-                }
-            })
-        })
-        .collect::<Vec<_>>()
+    let y_true = context.y_true.data();
+    let y_pred = context.y_pred.data();
+    let mut numerators = vec![0.0; context.outputs];
+    let mut denominators = vec![0.0; context.outputs];
+    let weights = context.sample_weights();
+
+    for sample in 0..context.samples {
+        let weight = weights.map_or(1.0, |values| values[sample]);
+        let offset = sample * context.outputs;
+        for output in 0..context.outputs {
+            let true_value = y_true[offset + output];
+            let pred_value = y_pred[offset + output];
+            let value = if true_value == 0.0 {
+                2.0 * pred_value
+            } else {
+                2.0 * (true_value * (true_value / pred_value).ln() - true_value + pred_value)
+            };
+            numerators[output] += weight * value;
+            denominators[output] += weight;
+        }
+    }
+
+    numerators
+        .into_iter()
+        .zip(denominators)
+        .map(|(numerator, denominator)| numerator / denominator)
+        .collect()
 }
 
 /// Computes one mean Gamma deviance value per output column.
 fn per_output_gamma_values(context: &RegressionContext<'_>) -> Vec<f64> {
-    (0..context.outputs)
-        .map(|output| {
-            context.weighted_average(output, |sample, column| {
-                let true_value = context.y_true_at(sample, column);
-                let pred_value = context.y_pred_at(sample, column);
-                2.0 * (((true_value - pred_value) / pred_value) - (true_value / pred_value).ln())
-            })
-        })
-        .collect::<Vec<_>>()
+    let y_true = context.y_true.data();
+    let y_pred = context.y_pred.data();
+    let mut numerators = vec![0.0; context.outputs];
+    let mut denominators = vec![0.0; context.outputs];
+    let weights = context.sample_weights();
+
+    for sample in 0..context.samples {
+        let weight = weights.map_or(1.0, |values| values[sample]);
+        let offset = sample * context.outputs;
+        for output in 0..context.outputs {
+            let true_value = y_true[offset + output];
+            let pred_value = y_pred[offset + output];
+            let value =
+                2.0 * (((true_value - pred_value) / pred_value) - (true_value / pred_value).ln());
+            numerators[output] += weight * value;
+            denominators[output] += weight;
+        }
+    }
+
+    numerators
+        .into_iter()
+        .zip(denominators)
+        .map(|(numerator, denominator)| numerator / denominator)
+        .collect()
 }
 
 /// Computes one mean Tweedie deviance value per output column.
 fn per_output_tweedie_values(context: &RegressionContext<'_>, power: f64) -> Vec<f64> {
-    (0..context.outputs)
-        .map(|output| {
-            context.weighted_average(output, |sample, column| {
-                tweedie_unit_deviance(
-                    context.y_true_at(sample, column),
-                    context.y_pred_at(sample, column),
-                    power,
-                )
-            })
-        })
-        .collect::<Vec<_>>()
+    let y_true = context.y_true.data();
+    let y_pred = context.y_pred.data();
+    let mut numerators = vec![0.0; context.outputs];
+    let mut denominators = vec![0.0; context.outputs];
+    let weights = context.sample_weights();
+
+    for sample in 0..context.samples {
+        let weight = weights.map_or(1.0, |values| values[sample]);
+        let offset = sample * context.outputs;
+        for output in 0..context.outputs {
+            numerators[output] += weight
+                * tweedie_unit_deviance(y_true[offset + output], y_pred[offset + output], power);
+            denominators[output] += weight;
+        }
+    }
+
+    numerators
+        .into_iter()
+        .zip(denominators)
+        .map(|(numerator, denominator)| numerator / denominator)
+        .collect()
 }

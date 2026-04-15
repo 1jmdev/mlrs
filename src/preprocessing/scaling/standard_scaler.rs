@@ -1,9 +1,10 @@
 use crate::darray::Array;
 
-use super::super::PreprocessingError;
 use super::super::common::{
-    column_mean_var, ensure_2d_finite, ensure_feature_count, is_effectively_zero,
+    column_mean_var, ensure_2d_finite, ensure_feature_count, is_effectively_zero, load_f64x4,
+    store_f64x4, SIMD_LANES,
 };
+use super::super::PreprocessingError;
 
 /// Standardizes features by removing the mean and scaling to unit variance.
 #[derive(Debug, Clone, PartialEq)]
@@ -73,7 +74,11 @@ impl StandardScaler {
             .iter()
             .map(|variance| {
                 let std = variance.sqrt();
-                if is_effectively_zero(std) { 1.0 } else { std }
+                if is_effectively_zero(std) {
+                    1.0
+                } else {
+                    std
+                }
             })
             .collect::<Vec<_>>();
 
@@ -107,19 +112,55 @@ impl StandardScaler {
 
         let means = self.mean_.as_ref().map(Array::data);
         let scales = self.scale_.as_ref().map(Array::data);
-        let mut data = Vec::with_capacity(rows * cols);
+        let input = x.data();
+        let mut data = vec![0.0; rows * cols];
 
         for row in 0..rows {
             let offset = row * cols;
-            for col in 0..cols {
-                let mut value = x.data()[offset + col];
-                if self.with_mean {
-                    value -= means.ok_or(PreprocessingError::NotFitted("StandardScaler"))?[col];
+            let src = &input[offset..offset + cols];
+            let dst = &mut data[offset..offset + cols];
+            let mut col = 0;
+
+            match (self.with_mean, self.with_std) {
+                (true, true) => {
+                    let means = means.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values = (load_f64x4(src, col) - load_f64x4(means, col))
+                            / load_f64x4(scales, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = (src[col] - means[col]) / scales[col];
+                        col += 1;
+                    }
                 }
-                if self.with_std {
-                    value /= scales.ok_or(PreprocessingError::NotFitted("StandardScaler"))?[col];
+                (true, false) => {
+                    let means = means.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values = load_f64x4(src, col) - load_f64x4(means, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] - means[col];
+                        col += 1;
+                    }
                 }
-                data.push(value);
+                (false, true) => {
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values = load_f64x4(src, col) / load_f64x4(scales, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] / scales[col];
+                        col += 1;
+                    }
+                }
+                (false, false) => dst.copy_from_slice(src),
             }
         }
 
@@ -137,19 +178,55 @@ impl StandardScaler {
 
         let means = self.mean_.as_ref().map(Array::data);
         let scales = self.scale_.as_ref().map(Array::data);
-        let mut data = Vec::with_capacity(rows * cols);
+        let input = x.data();
+        let mut data = vec![0.0; rows * cols];
 
         for row in 0..rows {
             let offset = row * cols;
-            for col in 0..cols {
-                let mut value = x.data()[offset + col];
-                if self.with_std {
-                    value *= scales.ok_or(PreprocessingError::NotFitted("StandardScaler"))?[col];
+            let src = &input[offset..offset + cols];
+            let dst = &mut data[offset..offset + cols];
+            let mut col = 0;
+
+            match (self.with_mean, self.with_std) {
+                (true, true) => {
+                    let means = means.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values =
+                            load_f64x4(src, col) * load_f64x4(scales, col) + load_f64x4(means, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] * scales[col] + means[col];
+                        col += 1;
+                    }
                 }
-                if self.with_mean {
-                    value += means.ok_or(PreprocessingError::NotFitted("StandardScaler"))?[col];
+                (true, false) => {
+                    let means = means.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values = load_f64x4(src, col) + load_f64x4(means, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] + means[col];
+                        col += 1;
+                    }
                 }
-                data.push(value);
+                (false, true) => {
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("StandardScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values = load_f64x4(src, col) * load_f64x4(scales, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] * scales[col];
+                        col += 1;
+                    }
+                }
+                (false, false) => dst.copy_from_slice(src),
             }
         }
 

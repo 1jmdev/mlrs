@@ -1,10 +1,10 @@
 use crate::darray::Array;
 
-use super::super::PreprocessingError;
 use super::super::common::{
     checked_feature_range, column_min_max, ensure_2d_finite, ensure_feature_count,
-    is_effectively_zero,
+    is_effectively_zero, load_f64x4, store_f64x4, SIMD_LANES,
 };
+use super::super::PreprocessingError;
 
 /// Scales each feature into a user-provided interval.
 #[derive(Debug, Clone, PartialEq)]
@@ -128,16 +128,27 @@ impl MinMaxScaler {
             .ok_or(PreprocessingError::NotFitted("MinMaxScaler"))?
             .data();
         let (lower, upper) = self.feature_range;
-        let mut data = Vec::with_capacity(rows * cols);
+        let input = x.data();
+        let mut data = vec![0.0; rows * cols];
 
         for row in 0..rows {
             let offset = row * cols;
-            for col in 0..cols {
-                let mut value = x.data()[offset + col] * scale[col] + min[col];
-                if self.clip {
-                    value = value.clamp(lower, upper);
+            let src = &input[offset..offset + cols];
+            let dst = &mut data[offset..offset + cols];
+            let mut col = 0;
+            while col + SIMD_LANES <= cols {
+                let values = load_f64x4(src, col) * load_f64x4(scale, col) + load_f64x4(min, col);
+                store_f64x4(dst, col, values);
+                col += SIMD_LANES;
+            }
+            while col < cols {
+                dst[col] = src[col] * scale[col] + min[col];
+                col += 1;
+            }
+            if self.clip {
+                for value in dst.iter_mut() {
+                    *value = value.clamp(lower, upper);
                 }
-                data.push(value);
             }
         }
 
@@ -163,12 +174,22 @@ impl MinMaxScaler {
             .as_ref()
             .ok_or(PreprocessingError::NotFitted("MinMaxScaler"))?
             .data();
-        let mut data = Vec::with_capacity(rows * cols);
+        let input = x.data();
+        let mut data = vec![0.0; rows * cols];
 
         for row in 0..rows {
             let offset = row * cols;
-            for col in 0..cols {
-                data.push((x.data()[offset + col] - min[col]) / scale[col]);
+            let src = &input[offset..offset + cols];
+            let dst = &mut data[offset..offset + cols];
+            let mut col = 0;
+            while col + SIMD_LANES <= cols {
+                let values = (load_f64x4(src, col) - load_f64x4(min, col)) / load_f64x4(scale, col);
+                store_f64x4(dst, col, values);
+                col += SIMD_LANES;
+            }
+            while col < cols {
+                dst[col] = (src[col] - min[col]) / scale[col];
+                col += 1;
             }
         }
 

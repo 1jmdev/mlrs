@@ -61,11 +61,11 @@ impl Binarizer {
                 .ok_or(PreprocessingError::NotFitted("Binarizer"))?,
         )?;
 
-        let data = x
-            .data()
-            .iter()
-            .map(|value| if *value > self.threshold { 1.0 } else { 0.0 })
-            .collect::<Vec<_>>();
+        let input = x.data();
+        let mut data = vec![0.0; input.len()];
+        for (dst, value) in data.iter_mut().zip(input) {
+            *dst = if *value > self.threshold { 1.0 } else { 0.0 };
+        }
         Ok(Array::from_shape_vec(&[rows, cols], data))
     }
 }

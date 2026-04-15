@@ -1,10 +1,10 @@
 use crate::darray::Array;
 
-use super::super::PreprocessingError;
 use super::super::common::{
-    checked_quantile_range, column_percentile, ensure_2d_finite, ensure_feature_count,
-    is_effectively_zero,
+    checked_quantile_range, column_percentiles, ensure_2d_finite, ensure_feature_count,
+    is_effectively_zero, load_f64x4, store_f64x4, SIMD_LANES,
 };
+use super::super::PreprocessingError;
 
 /// Scales features using statistics that are robust to outliers.
 #[derive(Debug, Clone, PartialEq)]
@@ -72,9 +72,11 @@ impl RobustScaler {
     pub fn fit(&mut self, x: &Array) -> Result<&mut Self, PreprocessingError> {
         let (rows, cols) = ensure_2d_finite(x, "X")?;
         let (lower, upper) = checked_quantile_range(self.quantile_range.0, self.quantile_range.1)?;
-        let medians = column_percentile(x, rows, cols, 0.5);
-        let lowers = column_percentile(x, rows, cols, lower / 100.0);
-        let uppers = column_percentile(x, rows, cols, upper / 100.0);
+        let mut percentiles =
+            column_percentiles(x, rows, cols, &[0.5, lower / 100.0, upper / 100.0]);
+        let uppers = percentiles.pop().unwrap_or_default();
+        let lowers = percentiles.pop().unwrap_or_default();
+        let medians = percentiles.pop().unwrap_or_default();
         let scales = lowers
             .iter()
             .zip(&uppers)
@@ -115,19 +117,53 @@ impl RobustScaler {
 
         let centers = self.center_.as_ref().map(Array::data);
         let scales = self.scale_.as_ref().map(Array::data);
-        let mut data = Vec::with_capacity(rows * cols);
+        let input = x.data();
+        let mut data = vec![0.0; rows * cols];
 
         for row in 0..rows {
             let offset = row * cols;
-            for col in 0..cols {
-                let mut value = x.data()[offset + col];
-                if self.with_centering {
-                    value -= centers.ok_or(PreprocessingError::NotFitted("RobustScaler"))?[col];
+            let src = &input[offset..offset + cols];
+            let dst = &mut data[offset..offset + cols];
+            let mut col = 0;
+
+            match (self.with_centering, self.with_scaling) {
+                (true, true) => {
+                    let centers = centers.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values = (load_f64x4(src, col) - load_f64x4(centers, col))
+                            / load_f64x4(scales, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = (src[col] - centers[col]) / scales[col];
+                        col += 1;
+                    }
                 }
-                if self.with_scaling {
-                    value /= scales.ok_or(PreprocessingError::NotFitted("RobustScaler"))?[col];
+                (true, false) => {
+                    let centers = centers.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        store_f64x4(dst, col, load_f64x4(src, col) - load_f64x4(centers, col));
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] - centers[col];
+                        col += 1;
+                    }
                 }
-                data.push(value);
+                (false, true) => {
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        store_f64x4(dst, col, load_f64x4(src, col) / load_f64x4(scales, col));
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] / scales[col];
+                        col += 1;
+                    }
+                }
+                (false, false) => dst.copy_from_slice(src),
             }
         }
 
@@ -145,19 +181,53 @@ impl RobustScaler {
 
         let centers = self.center_.as_ref().map(Array::data);
         let scales = self.scale_.as_ref().map(Array::data);
-        let mut data = Vec::with_capacity(rows * cols);
+        let input = x.data();
+        let mut data = vec![0.0; rows * cols];
 
         for row in 0..rows {
             let offset = row * cols;
-            for col in 0..cols {
-                let mut value = x.data()[offset + col];
-                if self.with_scaling {
-                    value *= scales.ok_or(PreprocessingError::NotFitted("RobustScaler"))?[col];
+            let src = &input[offset..offset + cols];
+            let dst = &mut data[offset..offset + cols];
+            let mut col = 0;
+
+            match (self.with_centering, self.with_scaling) {
+                (true, true) => {
+                    let centers = centers.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        let values = load_f64x4(src, col) * load_f64x4(scales, col)
+                            + load_f64x4(centers, col);
+                        store_f64x4(dst, col, values);
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] * scales[col] + centers[col];
+                        col += 1;
+                    }
                 }
-                if self.with_centering {
-                    value += centers.ok_or(PreprocessingError::NotFitted("RobustScaler"))?[col];
+                (true, false) => {
+                    let centers = centers.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        store_f64x4(dst, col, load_f64x4(src, col) + load_f64x4(centers, col));
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] + centers[col];
+                        col += 1;
+                    }
                 }
-                data.push(value);
+                (false, true) => {
+                    let scales = scales.ok_or(PreprocessingError::NotFitted("RobustScaler"))?;
+                    while col + SIMD_LANES <= cols {
+                        store_f64x4(dst, col, load_f64x4(src, col) * load_f64x4(scales, col));
+                        col += SIMD_LANES;
+                    }
+                    while col < cols {
+                        dst[col] = src[col] * scales[col];
+                        col += 1;
+                    }
+                }
+                (false, false) => dst.copy_from_slice(src),
             }
         }
 

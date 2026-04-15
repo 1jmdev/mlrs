@@ -1,5 +1,6 @@
 mod absolute;
 mod aggregation;
+mod aliases;
 mod context;
 mod deviance;
 mod scores;
@@ -12,6 +13,7 @@ pub use absolute::{
     mean_absolute_percentage_error, mean_absolute_percentage_error_with_options,
     median_absolute_error, median_absolute_error_with_options,
 };
+pub use aliases::{mae, mse, rmse};
 pub use deviance::{
     mean_gamma_deviance, mean_gamma_deviance_with_options, mean_pinball_loss,
     mean_pinball_loss_with_options, mean_poisson_deviance, mean_poisson_deviance_with_options,

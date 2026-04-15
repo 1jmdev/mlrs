@@ -12,6 +12,12 @@ pub enum LinearModelError {
     InvalidEpochs(usize),
     /// The configured learning rate is not finite or positive.
     InvalidLearningRate(f64),
+    /// The configured regularization strength is not finite or is negative.
+    InvalidAlpha(f64),
+    /// The configured coordinate descent tolerance is not finite or positive.
+    InvalidTolerance(f64),
+    /// The configured iteration count is invalid.
+    InvalidMaxIterations(usize),
     /// The feature matrix does not have two dimensions.
     InvalidFeatureMatrixShape(Vec<usize>),
     /// The target array is neither a vector nor a matrix.
@@ -29,7 +35,7 @@ impl Display for LinearModelError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::EmptyInput => write!(f, "fit() requires at least one sample and one feature"),
-            Self::NotFitted => write!(f, "this LinearRegression instance is not fitted yet"),
+            Self::NotFitted => write!(f, "this linear model instance is not fitted yet"),
             Self::InvalidEpochs(epochs) => {
                 write!(f, "epochs must be at least 1, got {epochs}")
             }
@@ -37,6 +43,15 @@ impl Display for LinearModelError {
                 f,
                 "learning_rate must be finite and > 0, got {learning_rate}"
             ),
+            Self::InvalidAlpha(alpha) => {
+                write!(f, "alpha must be finite and >= 0, got {alpha}")
+            }
+            Self::InvalidTolerance(tol) => {
+                write!(f, "tol must be finite and > 0, got {tol}")
+            }
+            Self::InvalidMaxIterations(max_iter) => {
+                write!(f, "max_iter must be at least 1, got {max_iter}")
+            }
             Self::InvalidFeatureMatrixShape(shape) => {
                 write!(f, "expected X to be 2-D, got shape {shape:?}")
             }
@@ -52,7 +67,7 @@ impl Display for LinearModelError {
             ),
             Self::FeatureCountMismatch { expected, got } => write!(
                 f,
-                "X has {got} features, but LinearRegression was fitted with {expected}"
+                "X has {got} features, but the model was fitted with {expected}"
             ),
             Self::SingularMatrix => write!(
                 f,

@@ -82,7 +82,11 @@ pub(crate) fn weighted_median(values: &mut [(f64, f64)]) -> f64 {
 /// Converts explained variance sums into a final score.
 pub(crate) fn explained_variance_from_sums(numerator: f64, denominator: f64) -> f64 {
     if denominator <= f64::EPSILON {
-        if numerator <= f64::EPSILON { 1.0 } else { 0.0 }
+        if numerator <= f64::EPSILON {
+            1.0
+        } else {
+            0.0
+        }
     } else {
         1.0 - numerator / denominator
     }
@@ -91,7 +95,11 @@ pub(crate) fn explained_variance_from_sums(numerator: f64, denominator: f64) -> 
 /// Converts residual and total sums into an `R^2` score.
 pub(crate) fn r2_from_sums(numerator: f64, denominator: f64) -> f64 {
     if denominator <= f64::EPSILON {
-        if numerator <= f64::EPSILON { 1.0 } else { 0.0 }
+        if numerator <= f64::EPSILON {
+            1.0
+        } else {
+            0.0
+        }
     } else {
         1.0 - numerator / denominator
     }

@@ -2,11 +2,11 @@ use crate::darray::Array;
 
 use rayon::prelude::*;
 
-use super::super::common::{
-    ensure_2d_finite, ensure_feature_count, is_effectively_zero, load_f64x4, store_f64x4,
-    SIMD_LANES,
-};
 use super::super::PreprocessingError;
+use super::super::common::{
+    SIMD_LANES, ensure_2d_finite, ensure_feature_count, is_effectively_zero, load_f64x4,
+    store_f64x4,
+};
 
 const PARALLEL_THRESHOLD: usize = 16_384;
 const PARALLEL_CHUNK_ELEMENTS: usize = 65_536;

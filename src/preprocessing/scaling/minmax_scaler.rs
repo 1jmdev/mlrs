@@ -1,10 +1,10 @@
 use crate::darray::Array;
 
-use super::super::common::{
-    checked_feature_range, column_min_max, ensure_2d_finite, ensure_feature_count,
-    is_effectively_zero, load_f64x4, store_f64x4, SIMD_LANES,
-};
 use super::super::PreprocessingError;
+use super::super::common::{
+    SIMD_LANES, checked_feature_range, column_min_max, ensure_2d_finite, ensure_feature_count,
+    is_effectively_zero, load_f64x4, store_f64x4,
+};
 
 /// Scales each feature into a user-provided interval.
 #[derive(Debug, Clone, PartialEq)]

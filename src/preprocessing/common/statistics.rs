@@ -1,6 +1,6 @@
 use crate::darray::Array;
 
-use super::{load_f64x4, store_f64x4, SIMD_LANES};
+use super::{SIMD_LANES, load_f64x4, store_f64x4};
 use wide::f64x4;
 
 /// Computes per-feature means and population variances.

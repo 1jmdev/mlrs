@@ -1,7 +1,7 @@
 use crate::darray::Array;
 
-use super::super::common::{ensure_2d_finite, ensure_feature_count, unique_sorted};
 use super::super::PreprocessingError;
+use super::super::common::{ensure_2d_finite, ensure_feature_count, unique_sorted};
 use super::OrdinalHandleUnknown;
 
 /// Encodes each categorical feature column as ordinal category indices.

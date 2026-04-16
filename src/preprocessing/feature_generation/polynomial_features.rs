@@ -1,7 +1,7 @@
 use crate::darray::Array;
 
-use super::super::common::{ensure_2d_finite, ensure_feature_count};
 use super::super::PreprocessingError;
+use super::super::common::{ensure_2d_finite, ensure_feature_count};
 use super::combinations::generate_powers;
 
 /// Expands features into a polynomial basis up to a fixed degree.

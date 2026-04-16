@@ -38,6 +38,13 @@ pub enum PreprocessingError {
         feature_index: usize,
         details: &'static str,
     },
+    /// A configured constant fill value is not finite.
+    InvalidFillValue(f64),
+    /// A requested imputation statistic could not be computed for a feature.
+    MissingStatistic {
+        feature_index: usize,
+        strategy: &'static str,
+    },
 }
 
 impl Display for PreprocessingError {
@@ -48,7 +55,10 @@ impl Display for PreprocessingError {
                 write!(f, "expected a non-empty 2-D array, got shape {shape:?}")
             }
             Self::InvalidLabelShape(shape) => {
-                write!(f, "expected a non-empty 1-D label array, got shape {shape:?}")
+                write!(
+                    f,
+                    "expected a non-empty 1-D label array, got shape {shape:?}"
+                )
             }
             Self::NotFitted(name) => write!(f, "this {name} instance is not fitted yet"),
             Self::FeatureCountMismatch { expected, got } => write!(
@@ -98,6 +108,16 @@ impl Display for PreprocessingError {
             } => write!(
                 f,
                 "could not decode sample {sample_index}, feature {feature_index}: {details}"
+            ),
+            Self::InvalidFillValue(fill_value) => {
+                write!(f, "fill_value must be finite, got {fill_value}")
+            }
+            Self::MissingStatistic {
+                feature_index,
+                strategy,
+            } => write!(
+                f,
+                "cannot compute {strategy} for feature {feature_index} because it contains only missing values"
             ),
         }
     }

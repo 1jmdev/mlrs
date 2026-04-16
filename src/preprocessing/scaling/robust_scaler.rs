@@ -1,10 +1,10 @@
 use crate::darray::Array;
 
-use super::super::common::{
-    checked_quantile_range, column_percentiles, ensure_2d_finite, ensure_feature_count,
-    is_effectively_zero, load_f64x4, store_f64x4, SIMD_LANES,
-};
 use super::super::PreprocessingError;
+use super::super::common::{
+    SIMD_LANES, checked_quantile_range, column_percentiles, ensure_2d_finite, ensure_feature_count,
+    is_effectively_zero, load_f64x4, store_f64x4,
+};
 
 /// Scales features using statistics that are robust to outliers.
 #[derive(Debug, Clone, PartialEq)]

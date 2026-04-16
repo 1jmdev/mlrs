@@ -1,10 +1,10 @@
 use crate::darray::Array;
 
-use super::super::common::{
-    ensure_2d_finite, ensure_feature_count, is_effectively_zero, load_f64x4, reduce_max,
-    reduce_sum, store_f64x4, SIMD_LANES,
-};
 use super::super::PreprocessingError;
+use super::super::common::{
+    SIMD_LANES, ensure_2d_finite, ensure_feature_count, is_effectively_zero, load_f64x4,
+    reduce_max, reduce_sum, store_f64x4,
+};
 use super::Norm;
 use wide::f64x4;
 

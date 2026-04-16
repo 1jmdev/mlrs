@@ -1,7 +1,7 @@
 use crate::darray::Array;
 
-use super::super::common::{ensure_1d_finite, unique_sorted_1d};
 use super::super::PreprocessingError;
+use super::super::common::{ensure_1d_finite, unique_sorted_1d};
 
 /// Encodes a one-dimensional target vector into contiguous class indices.
 #[derive(Debug, Clone, PartialEq)]

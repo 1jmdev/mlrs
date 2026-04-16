@@ -2,7 +2,7 @@ mod simd;
 mod statistics;
 mod validation;
 
-pub(crate) use simd::{load_f64x4, reduce_max, reduce_sum, store_f64x4, SIMD_LANES};
+pub(crate) use simd::{SIMD_LANES, load_f64x4, reduce_max, reduce_sum, store_f64x4};
 pub(crate) use statistics::{
     column_mean_var, column_min_max, column_percentiles, unique_sorted, unique_sorted_1d,
 };

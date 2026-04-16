@@ -1,7 +1,7 @@
 use crate::darray::Array;
 
-use super::super::common::{ensure_2d_finite, ensure_feature_count};
 use super::super::PreprocessingError;
+use super::super::common::{ensure_2d_finite, ensure_feature_count};
 
 /// Thresholds each feature value into a binary output.
 #[derive(Debug, Clone, PartialEq)]

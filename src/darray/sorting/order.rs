@@ -16,9 +16,10 @@ impl Array {
     pub fn argsort(&self) -> Self {
         let mut indices = (0..self.len()).collect::<Vec<_>>();
         if indices.len() >= PAR_THRESHOLD {
-            indices.par_sort_by(|&left, &right| self.data()[left].total_cmp(&self.data()[right]));
+            indices
+                .par_sort_unstable_by(|&left, &right| self.data[left].total_cmp(&self.data[right]));
         } else {
-            indices.sort_by(|&left, &right| self.data()[left].total_cmp(&self.data()[right]));
+            indices.sort_unstable_by(|&left, &right| self.data[left].total_cmp(&self.data[right]));
         }
         let data = indices.into_iter().map(|index| index as f64).collect();
         Self::from_shape_vec(&[self.len()], data)
@@ -61,16 +62,18 @@ impl Array {
         assert!(axis < self.ndim(), "axis {axis} out of bounds");
         let (inner, outer, axis_len) = axis_inner_outer(&self.shape, axis);
         let mut data = vec![0.0; self.len()];
+        let mut pairs = vec![(0.0, 0usize); axis_len];
 
         for outer_index in 0..outer {
             for inner_index in 0..inner {
-                let mut indices = (0..axis_len).collect::<Vec<_>>();
-                indices.sort_by(|&left, &right| {
-                    let left_offset = (outer_index * axis_len + left) * inner + inner_index;
-                    let right_offset = (outer_index * axis_len + right) * inner + inner_index;
-                    self.data[left_offset].total_cmp(&self.data[right_offset])
-                });
-                for (axis_index, index) in indices.into_iter().enumerate() {
+                for axis_index in 0..axis_len {
+                    let offset = (outer_index * axis_len + axis_index) * inner + inner_index;
+                    pairs[axis_index] = (self.data[offset], axis_index);
+                }
+
+                pairs.sort_unstable_by(|left, right| left.0.total_cmp(&right.0));
+
+                for (axis_index, &(_, index)) in pairs.iter().enumerate() {
                     let offset = (outer_index * axis_len + axis_index) * inner + inner_index;
                     data[offset] = index as f64;
                 }

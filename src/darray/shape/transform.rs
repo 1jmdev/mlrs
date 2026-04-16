@@ -1,5 +1,5 @@
 use super::super::Array;
-use super::super::utils::{compute_size, compute_strides, index_to_offset, infer_shape};
+use super::super::utils::{compute_size, compute_strides, infer_shape};
 use smallvec::SmallVec;
 
 impl Array {
@@ -67,24 +67,36 @@ impl Array {
         let strides = compute_strides(&shape);
         let mut data = vec![0.0; self.data.len()];
 
-        for (flat_index, value) in data.iter_mut().enumerate() {
-            let mut remainder = flat_index;
-            let mut source_indices = SmallVec::<[usize; 6]>::from_elem(0, self.ndim());
+        if shape.is_empty() {
+            data[0] = self.data[0];
+            return Self {
+                data,
+                shape,
+                strides,
+            };
+        }
 
-            for (target_axis, &stride) in strides.iter().enumerate() {
-                let coordinate = if shape.is_empty() {
-                    0
-                } else {
-                    remainder / stride
-                };
-                if !shape.is_empty() {
-                    remainder %= stride;
-                }
-                source_indices[axes[target_axis]] = coordinate;
-            }
+        let mut mapped_strides = SmallVec::<[usize; 6]>::with_capacity(shape.len());
+        for &axis in axes {
+            mapped_strides.push(self.strides[axis]);
+        }
+        let mut coordinates = SmallVec::<[usize; 6]>::from_elem(0, shape.len());
+        let mut source_offset = 0usize;
 
-            let source_offset = index_to_offset(&source_indices, &self.shape, &self.strides);
+        for value in &mut data {
             *value = self.data[source_offset];
+
+            for axis in (0..shape.len()).rev() {
+                coordinates[axis] += 1;
+                source_offset += mapped_strides[axis];
+
+                if coordinates[axis] < shape[axis] {
+                    break;
+                }
+
+                coordinates[axis] = 0;
+                source_offset -= shape[axis] * mapped_strides[axis];
+            }
         }
 
         Self {

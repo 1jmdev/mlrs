@@ -52,7 +52,6 @@ impl Array {
             .map(|(&dimension, &repeat)| dimension * repeat)
             .collect::<SmallVec<[usize; 6]>>();
         let target_strides = compute_strides(&target_shape);
-        let source_strides = compute_strides(&source_shape);
         let size = compute_size(&target_shape);
 
         if source_shape == target_shape {
@@ -63,36 +62,32 @@ impl Array {
             };
         }
 
-        if ndim == 1 {
-            let mut data = Vec::with_capacity(size);
-            for _ in 0..aligned_reps[0] {
-                data.extend_from_slice(&self.data);
+        let mut data = self.data.clone();
+        let mut current_shape = source_shape.clone();
+
+        for axis in 0..ndim {
+            let repeat = aligned_reps[axis];
+            if repeat <= 1 {
+                continue;
             }
-            return Self::from_shape_vec(&target_shape, data);
-        }
 
-        let mut data = Vec::with_capacity(size);
+            let (inner, outer, axis_len) = axis_inner_outer(&current_shape, axis);
+            let block_len = axis_len * inner;
+            let mut tiled = Vec::with_capacity(data.len() * repeat);
 
-        for flat_index in 0..size {
-            let mut remainder = flat_index;
-            let mut source_offset = 0;
-
-            for axis in 0..ndim {
-                let coordinate = if target_shape.is_empty() {
-                    0
-                } else {
-                    remainder / target_strides[axis]
-                };
-                if !target_shape.is_empty() {
-                    remainder %= target_strides[axis];
+            for outer_index in 0..outer {
+                let start = outer_index * block_len;
+                let end = start + block_len;
+                for _ in 0..repeat {
+                    tiled.extend_from_slice(&data[start..end]);
                 }
-                let source_coordinate = coordinate % source_shape[axis];
-                source_offset += source_coordinate * source_strides[axis];
             }
 
-            data.push(self.data[source_offset]);
+            data = tiled;
+            current_shape[axis] *= repeat;
         }
 
+        debug_assert_eq!(data.len(), size);
         Self::from_shape_vec(&target_shape, data)
     }
 }

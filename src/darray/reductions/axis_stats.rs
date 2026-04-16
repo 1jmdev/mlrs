@@ -60,8 +60,50 @@ impl Array {
 
     /// Returns the population variance along an axis.
     pub fn var_axis(&self, axis: usize) -> Self {
-        let means = self.mean_axis(axis).expand_dims(axis);
-        self.sub_array(&means).square().mean_axis(axis)
+        assert!(axis < self.ndim(), "axis {axis} out of bounds");
+        let (inner, outer, axis_len) = axis_inner_outer(&self.shape, axis);
+        let shape = reduced_shape(&self.shape, axis);
+        let divisor = axis_len as f64;
+        let out_len = outer * inner;
+        let mut data = vec![0.0; out_len];
+
+        if out_len >= PAR_THRESHOLD {
+            data.par_iter_mut().enumerate().for_each(|(index, value)| {
+                let outer_index = index / inner;
+                let inner_index = index % inner;
+                let base = outer_index * axis_len * inner + inner_index;
+
+                let mut sum = 0.0;
+                let mut sum_sq = 0.0;
+                for axis_index in 0..axis_len {
+                    let current = self.data[base + axis_index * inner];
+                    sum += current;
+                    sum_sq += current * current;
+                }
+
+                let mean = sum / divisor;
+                *value = (sum_sq / divisor) - mean * mean;
+            });
+        } else {
+            for (index, value) in data.iter_mut().enumerate() {
+                let outer_index = index / inner;
+                let inner_index = index % inner;
+                let base = outer_index * axis_len * inner + inner_index;
+
+                let mut sum = 0.0;
+                let mut sum_sq = 0.0;
+                for axis_index in 0..axis_len {
+                    let current = self.data[base + axis_index * inner];
+                    sum += current;
+                    sum_sq += current * current;
+                }
+
+                let mean = sum / divisor;
+                *value = (sum_sq / divisor) - mean * mean;
+            }
+        }
+
+        Self::from_shape_vec(&shape, data)
     }
 
     /// Returns the population standard deviation along an axis.

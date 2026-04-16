@@ -41,6 +41,19 @@ impl Array {
 
     /// Selects values from `x` or `y` based on a broadcast condition.
     pub fn where_cond(condition: &Self, x: &Self, y: &Self) -> Self {
+        if condition.shape == x.shape && x.shape == y.shape {
+            let mut data = vec![0.0; condition.len()];
+            for (index, value) in data.iter_mut().enumerate() {
+                *value = if condition.data[index] != 0.0 {
+                    x.data[index]
+                } else {
+                    y.data[index]
+                };
+            }
+
+            return Self::from_shape_vec(&condition.shape, data);
+        }
+
         ternary_map(
             condition,
             x,

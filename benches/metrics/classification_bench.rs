@@ -24,6 +24,18 @@ fn data(samples: usize) -> (Array, Array, Array) {
 
 fn bench_classification_metrics(c: &mut Criterion) {
     let (y_true, y_pred, weights) = data(200_000);
+    let y_true_binary = Array::from_shape_vec(
+        &[200_000],
+        (0..200_000)
+            .map(|i| if i % 3 == 0 { 1.0 } else { 0.0 })
+            .collect(),
+    );
+    let y_pred_binary = Array::from_shape_vec(
+        &[200_000],
+        (0..200_000)
+            .map(|i| if (i + (i % 5)) % 4 == 0 { 1.0 } else { 0.0 })
+            .collect(),
+    );
     let labels = Array::from_shape_vec(&[4], vec![0.0, 1.0, 2.0, 3.0]);
     let mut g = c.benchmark_group("metrics_classification");
     g.bench_function("accuracy", |b| {
@@ -99,10 +111,11 @@ fn bench_classification_metrics(c: &mut Criterion) {
     });
     g.bench_function("scalar_shortcuts", |b| {
         b.iter(|| {
-            let _ =
-                precision_score(black_box(&y_true), black_box(&y_pred)).expect("precision failed");
-            let _ = recall_score(black_box(&y_true), black_box(&y_pred)).expect("recall failed");
-            f1_score(black_box(&y_true), black_box(&y_pred)).expect("f1 failed")
+            let _ = precision_score(black_box(&y_true_binary), black_box(&y_pred_binary))
+                .expect("precision failed");
+            let _ = recall_score(black_box(&y_true_binary), black_box(&y_pred_binary))
+                .expect("recall failed");
+            f1_score(black_box(&y_true_binary), black_box(&y_pred_binary)).expect("f1 failed")
         })
     });
     g.finish();

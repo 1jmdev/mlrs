@@ -10,3 +10,116 @@ memchr = "2.8.0"
 rayon = "1.12.0"
 smallvec = "1.15.1"
 wide = "1.3.0"
+
+[dev-dependencies]
+criterion = { version = "0.8.2", features = ["html_reports"] }
+
+[[bench]]
+name = "darray_constructors"
+harness = false
+path = "benches/darray/constructors_bench.rs"
+
+[[bench]]
+name = "darray_indexing"
+harness = false
+path = "benches/darray/indexing_bench.rs"
+
+[[bench]]
+name = "darray_linalg"
+harness = false
+path = "benches/darray/linalg_bench.rs"
+
+[[bench]]
+name = "darray_math_unary"
+harness = false
+path = "benches/darray/math_unary_bench.rs"
+
+[[bench]]
+name = "darray_math_arithmetic"
+harness = false
+path = "benches/darray/math_arithmetic_bench.rs"
+
+[[bench]]
+name = "darray_math_comparison"
+harness = false
+path = "benches/darray/math_comparison_bench.rs"
+
+[[bench]]
+name = "darray_reductions_scalar"
+harness = false
+path = "benches/darray/reductions_scalar_bench.rs"
+
+[[bench]]
+name = "darray_reductions_axis"
+harness = false
+path = "benches/darray/reductions_axis_bench.rs"
+
+[[bench]]
+name = "darray_reductions_cumulative"
+harness = false
+path = "benches/darray/reductions_cumulative_bench.rs"
+
+[[bench]]
+name = "darray_shape_transform"
+harness = false
+path = "benches/darray/shape_transform_bench.rs"
+
+[[bench]]
+name = "darray_shape_combine"
+harness = false
+path = "benches/darray/shape_combine_bench.rs"
+
+[[bench]]
+name = "darray_shape_repeat"
+harness = false
+path = "benches/darray/shape_repeat_bench.rs"
+
+[[bench]]
+name = "darray_sorting"
+harness = false
+path = "benches/darray/sorting_bench.rs"
+
+[[bench]]
+name = "darray_random"
+harness = false
+path = "benches/darray/random_bench.rs"
+
+[[bench]]
+name = "linear_regression"
+harness = false
+path = "benches/linear_model/linear_regression_bench.rs"
+
+[[bench]]
+name = "ridge"
+harness = false
+path = "benches/linear_model/ridge_bench.rs"
+
+[[bench]]
+name = "lasso"
+harness = false
+path = "benches/linear_model/lasso_bench.rs"
+
+[[bench]]
+name = "elastic_net"
+harness = false
+path = "benches/linear_model/elastic_net_bench.rs"
+
+[[bench]]
+name = "logistic_regression"
+harness = false
+path = "benches/linear_model/logistic_regression_bench.rs"
+
+[[bench]]
+name = "metrics_classification"
+harness = false
+path = "benches/metrics/classification_bench.rs"
+
+[[bench]]
+name = "metrics_regression"
+harness = false
+path = "benches/metrics/regression_bench.rs"
+
+[[bench]]
+name = "metrics_model_selection"
+harness = false
+path = "benches/metrics/model_selection_bench.rs"

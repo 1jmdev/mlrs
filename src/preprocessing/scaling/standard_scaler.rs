@@ -1,10 +1,10 @@
 use crate::darray::Array;
 
-use super::super::common::{
-    column_mean_var, ensure_2d_finite, ensure_feature_count, is_effectively_zero, load_f64x4,
-    store_f64x4, SIMD_LANES,
-};
 use super::super::PreprocessingError;
+use super::super::common::{
+    SIMD_LANES, column_mean_var, ensure_2d_finite, ensure_feature_count, is_effectively_zero,
+    load_f64x4, store_f64x4,
+};
 
 /// Standardizes features by removing the mean and scaling to unit variance.
 #[derive(Debug, Clone, PartialEq)]
@@ -74,11 +74,7 @@ impl StandardScaler {
             .iter()
             .map(|variance| {
                 let std = variance.sqrt();
-                if is_effectively_zero(std) {
-                    1.0
-                } else {
-                    std
-                }
+                if is_effectively_zero(std) { 1.0 } else { std }
             })
             .collect::<Vec<_>>();
 

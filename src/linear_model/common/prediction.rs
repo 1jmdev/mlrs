@@ -4,8 +4,8 @@ use matrixmultiply::dgemm;
 use rayon::prelude::*;
 use wide::f64x4;
 
-use super::validation::validate_features;
 use super::LinearModelError;
+use super::validation::validate_features;
 
 const SIMD_WIDTH: usize = 4;
 const PAR_THRESHOLD: usize = 16_384;

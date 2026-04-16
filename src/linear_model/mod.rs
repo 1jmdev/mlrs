@@ -1,14 +1,7 @@
-mod error;
-mod fit;
-mod lasso;
-mod linear_regression;
-mod predict;
-mod prediction;
-mod ridge;
-mod training;
-mod validation;
+mod classification;
+mod common;
+mod regression;
 
-pub use error::LinearModelError;
-pub use lasso::Lasso;
-pub use linear_regression::LinearRegression;
-pub use ridge::Ridge;
+pub use classification::LogisticRegression;
+pub use common::LinearModelError;
+pub use regression::{ElasticNet, Lasso, LinearRegression, Ridge};

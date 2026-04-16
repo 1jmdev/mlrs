@@ -18,12 +18,18 @@ pub enum LinearModelError {
     InvalidTolerance(f64),
     /// The configured iteration count is invalid.
     InvalidMaxIterations(usize),
+    /// The configured elastic-net `l1_ratio` is invalid.
+    InvalidL1Ratio(f64),
     /// The feature matrix does not have two dimensions.
     InvalidFeatureMatrixShape(Vec<usize>),
     /// The target array is neither a vector nor a matrix.
     InvalidTargetShape(Vec<usize>),
+    /// Logistic regression requires a non-empty 1-D label array.
+    InvalidLabelShape(Vec<usize>),
     /// The feature matrix and target array disagree on sample count.
     SampleCountMismatch { x_samples: usize, y_samples: usize },
+    /// Logistic regression requires at least two distinct classes.
+    InvalidClassCount(usize),
     /// Prediction input used a different feature count than training.
     FeatureCountMismatch { expected: usize, got: usize },
     /// The least-squares system could not be solved safely.
@@ -52,11 +58,20 @@ impl Display for LinearModelError {
             Self::InvalidMaxIterations(max_iter) => {
                 write!(f, "max_iter must be at least 1, got {max_iter}")
             }
+            Self::InvalidL1Ratio(l1_ratio) => {
+                write!(f, "l1_ratio must be finite and in [0, 1], got {l1_ratio}")
+            }
             Self::InvalidFeatureMatrixShape(shape) => {
                 write!(f, "expected X to be 2-D, got shape {shape:?}")
             }
             Self::InvalidTargetShape(shape) => {
                 write!(f, "expected y to be 1-D or 2-D, got shape {shape:?}")
+            }
+            Self::InvalidLabelShape(shape) => {
+                write!(
+                    f,
+                    "expected y to be a non-empty 1-D array, got shape {shape:?}"
+                )
             }
             Self::SampleCountMismatch {
                 x_samples,
@@ -64,6 +79,10 @@ impl Display for LinearModelError {
             } => write!(
                 f,
                 "X and y have inconsistent numbers of samples: {x_samples} != {y_samples}"
+            ),
+            Self::InvalidClassCount(classes) => write!(
+                f,
+                "logistic regression requires at least 2 distinct classes, got {classes}"
             ),
             Self::FeatureCountMismatch { expected, got } => write!(
                 f,

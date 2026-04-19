@@ -1,4 +1,5 @@
 use crate::darray::{Array, RandomState};
+use crate::darray::DArrayError;
 
 pub use crate::darray::RandomState as Generator;
 
@@ -43,19 +44,19 @@ pub fn normal(mean: f64, std: f64, shape: &[usize]) -> Array {
 }
 
 /// Returns uniform random samples in `[low, high)`.
-pub fn uniform(low: f64, high: f64, shape: &[usize]) -> Array {
+pub fn uniform(low: f64, high: f64, shape: &[usize]) -> Result<Array, DArrayError> {
     let mut rng = RandomState::new();
     rng.uniform(low, high, shape)
 }
 
 /// Returns random integers in `[low, high)` as `f64` values.
-pub fn randint(low: i64, high: i64, shape: &[usize]) -> Array {
+pub fn randint(low: i64, high: i64, shape: &[usize]) -> Result<Array, DArrayError> {
     let mut rng = RandomState::new();
     rng.randint(low, high, shape)
 }
 
 /// Chooses values from a flattened input array.
-pub fn choice(values: &Array, size: usize, replace: bool) -> Array {
+pub fn choice(values: &Array, size: usize, replace: bool) -> Result<Array, DArrayError> {
     let mut rng = RandomState::new();
     rng.choice(values, size, replace)
 }

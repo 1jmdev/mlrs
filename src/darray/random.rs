@@ -1,6 +1,7 @@
 use fastrand::Rng;
 
 use super::Array;
+use super::DArrayError;
 use super::utils::compute_size;
 
 pub struct RandomState {
@@ -76,29 +77,50 @@ impl RandomState {
         Array::from_shape_vec(shape, data)
     }
 
-    pub fn uniform(&mut self, low: f64, high: f64, shape: &[usize]) -> Array {
-        assert!(low < high, "uniform() requires low < high");
+    pub fn uniform(
+        &mut self,
+        low: f64,
+        high: f64,
+        shape: &[usize],
+    ) -> Result<Array, DArrayError> {
+        if low >= high {
+            return Err(DArrayError::InvalidUniformRange { low, high });
+        }
         let size = compute_size(shape);
         let scale = high - low;
         let mut data = Vec::with_capacity(size);
         for _ in 0..size {
             data.push(self.rng.f64() * scale + low);
         }
-        Array::from_shape_vec(shape, data)
+        Ok(Array::from_shape_vec(shape, data))
     }
 
-    pub fn randint(&mut self, low: i64, high: i64, shape: &[usize]) -> Array {
-        assert!(low < high, "randint() requires low < high");
+    pub fn randint(
+        &mut self,
+        low: i64,
+        high: i64,
+        shape: &[usize],
+    ) -> Result<Array, DArrayError> {
+        if low >= high {
+            return Err(DArrayError::InvalidRandintRange { low, high });
+        }
         let size = compute_size(shape);
         let mut data = Vec::with_capacity(size);
         for _ in 0..size {
             data.push(self.rng.i64(low..high) as f64);
         }
-        Array::from_shape_vec(shape, data)
+        Ok(Array::from_shape_vec(shape, data))
     }
 
-    pub fn choice(&mut self, values: &Array, size: usize, replace: bool) -> Array {
-        assert!(!values.is_empty(), "choice() requires at least one value");
+    pub fn choice(
+        &mut self,
+        values: &Array,
+        size: usize,
+        replace: bool,
+    ) -> Result<Array, DArrayError> {
+        if values.is_empty() {
+            return Err(DArrayError::EmptyInput("choice()"));
+        }
 
         if replace {
             let mut data = Vec::with_capacity(size);
@@ -106,13 +128,15 @@ impl RandomState {
                 let index = self.rng.usize(0..values.len());
                 data.push(values.data()[index]);
             }
-            return Array::from_shape_vec(&[size], data);
+            return Ok(Array::from_shape_vec(&[size], data));
         }
 
-        assert!(
-            size <= values.len(),
-            "choice(replace=false) requires size <= number of values"
-        );
+        if size > values.len() {
+            return Err(DArrayError::ChoiceSampleTooLarge {
+                requested: size,
+                available: values.len(),
+            });
+        }
 
         let mut indices = (0..values.len()).collect::<Vec<_>>();
         self.shuffle(&mut indices);
@@ -120,7 +144,7 @@ impl RandomState {
         for index in indices.into_iter().take(size) {
             data.push(values.data()[index]);
         }
-        Array::from_shape_vec(&[size], data)
+        Ok(Array::from_shape_vec(&[size], data))
     }
 
     pub fn permutation(&mut self, values: &Array) -> Array {

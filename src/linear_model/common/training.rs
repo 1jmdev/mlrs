@@ -55,16 +55,20 @@ pub(crate) fn finalize_parameters(
     x_offset: &Array,
     y_offset: &Array,
     fit_intercept: bool,
-) -> (Array, Array) {
+) -> Result<(Array, Array), LinearModelError> {
     let intercepts = if fit_intercept {
-        let weighted_offsets = x_offset.expand_dims(0).matmul(coefficients).squeeze();
+        let weighted_offsets = x_offset
+            .expand_dims(0)
+            .matmul(coefficients)
+            .map_err(|_| LinearModelError::InvalidFeatureMatrixShape(x_offset.shape().to_vec()))?
+            .squeeze();
         y_offset.sub_array(&weighted_offsets)
     } else {
         Array::zeros(&[y_offset.len()])
     };
 
-    (
+    Ok((
         format_coefficients(coefficients, prepared_y.is_vector),
         format_intercepts(&intercepts, prepared_y.is_vector),
-    )
+    ))
 }

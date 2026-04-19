@@ -22,6 +22,7 @@ fn bench_random(c: &mut Criterion) {
         b.iter(|| {
             let mut rng = RandomState::seeded(black_box(7));
             rng.choice(black_box(&values), black_box(50_000), black_box(false))
+                .expect("choice failed")
         })
     });
     g.bench_function("permutation", |b| {

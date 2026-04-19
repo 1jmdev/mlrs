@@ -209,7 +209,9 @@ fn linear_3d(x: &Array, weight: &Array, bias: Option<&Array>) -> Result<Array, D
 
     let output = weight.shape()[1];
     let flat = x.reshape(&[(batch * steps) as isize, channels as isize]);
-    let mut projected = flat.matmul(weight);
+    let mut projected = flat
+        .matmul(weight)
+        .map_err(|error| DemoError::InvalidShape(error.to_string()))?;
     if let Some(bias) = bias {
         projected = projected.add(bias);
     }
@@ -313,7 +315,9 @@ fn batched_matmul_4d(left: &Array, right: &Array) -> Result<Array, DemoError> {
                 &[shared, right_cols],
                 right.data()[right_offset..right_offset + right_block].to_vec(),
             );
-            let product = left_matrix.matmul(&right_matrix);
+            let product = left_matrix
+                .matmul(&right_matrix)
+                .map_err(|error| DemoError::InvalidShape(error.to_string()))?;
             data.extend_from_slice(product.data());
         }
     }

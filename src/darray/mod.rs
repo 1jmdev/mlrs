@@ -1,5 +1,6 @@
 mod array;
 mod constructors;
+mod error;
 mod indexing;
 mod linalg;
 mod math;
@@ -11,5 +12,6 @@ mod sorting;
 mod utils;
 
 pub use array::Array;
+pub use error::DArrayError;
 pub use random::RandomState;
 pub use sorting::SearchSide;

@@ -73,7 +73,7 @@ impl Ridge {
             &training.x_offset,
             &training.y_offset,
             self.fit_intercept,
-        );
+        )?;
 
         self.n_features_in_ = Some(training.n_features);
         self.coef_ = Some(coef);

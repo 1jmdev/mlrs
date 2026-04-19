@@ -4,7 +4,8 @@ use rayon::prelude::*;
 use super::super::MetricsError;
 use super::types::{ConfusionMatrixNormalize, ConfusionMatrixOptions};
 use super::validation::{
-    label_index, resolve_labels, validate_label_vectors, validate_sample_weight,
+    build_label_lookup, label_lookup_index, resolve_labels, validate_label_vectors,
+    validate_sample_weight,
 };
 
 const PAR_THRESHOLD: usize = 16_384;
@@ -23,6 +24,7 @@ pub fn confusion_matrix_with_options(
     let samples = validate_label_vectors(y_true, y_pred)?;
     let sample_weight = validate_sample_weight(options.sample_weight, samples)?;
     let labels = resolve_labels(y_true, y_pred, options.labels)?;
+    let label_lookup = build_label_lookup(&labels);
     let classes = labels.len();
     let mut data = if samples >= PAR_THRESHOLD {
         (0..samples)
@@ -32,7 +34,7 @@ pub fn confusion_matrix_with_options(
                 |mut local, sample| {
                     update_confusion_counts(
                         &mut local,
-                        &labels,
+                        &label_lookup,
                         y_true.data()[sample],
                         y_pred.data()[sample],
                         sample_weight.map_or(1.0, |weights| weights[sample]),
@@ -55,7 +57,7 @@ pub fn confusion_matrix_with_options(
         for sample in 0..samples {
             update_confusion_counts(
                 &mut local,
-                &labels,
+                &label_lookup,
                 y_true.data()[sample],
                 y_pred.data()[sample],
                 sample_weight.map_or(1.0, |weights| weights[sample]),
@@ -71,16 +73,16 @@ pub fn confusion_matrix_with_options(
 
 fn update_confusion_counts(
     data: &mut [f64],
-    labels: &[f64],
+    label_lookup: &[(f64, usize)],
     y_true: f64,
     y_pred: f64,
     weight: f64,
     classes: usize,
 ) {
-    let Some(true_index) = label_index(labels, y_true) else {
+    let Some(true_index) = label_lookup_index(label_lookup, y_true) else {
         return;
     };
-    let Some(pred_index) = label_index(labels, y_pred) else {
+    let Some(pred_index) = label_lookup_index(label_lookup, y_pred) else {
         return;
     };
     data[true_index * classes + pred_index] += weight;

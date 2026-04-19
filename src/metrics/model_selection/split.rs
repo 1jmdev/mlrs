@@ -33,17 +33,3 @@ pub fn train_test_split(
         y_test: y.take(test_indices, 0),
     })
 }
-
-trait ShuffleIndices {
-    fn shuffle_indices(&mut self, data: &mut [usize]);
-}
-
-impl ShuffleIndices for RandomState {
-    fn shuffle_indices(&mut self, data: &mut [usize]) {
-        let values = data.iter().map(|&value| value as f64).collect::<Vec<_>>();
-        let shuffled = self.permutation(&Array::array(&values));
-        for (slot, &value) in data.iter_mut().zip(shuffled.data()) {
-            *slot = value as usize;
-        }
-    }
-}

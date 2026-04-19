@@ -111,3 +111,21 @@ pub(crate) fn label_index(labels: &[f64], value: f64) -> Option<usize> {
         .iter()
         .position(|label: &f64| label.total_cmp(&value).is_eq())
 }
+
+pub(crate) fn build_label_lookup(labels: &[f64]) -> Vec<(f64, usize)> {
+    let mut lookup = labels
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, label)| (label, index))
+        .collect::<Vec<_>>();
+    lookup.sort_by(|left, right| left.0.total_cmp(&right.0));
+    lookup
+}
+
+pub(crate) fn label_lookup_index(lookup: &[(f64, usize)], value: f64) -> Option<usize> {
+    lookup
+        .binary_search_by(|(label, _)| label.total_cmp(&value))
+        .ok()
+        .map(|index| lookup[index].1)
+}

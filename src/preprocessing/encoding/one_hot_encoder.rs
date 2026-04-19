@@ -115,16 +115,17 @@ impl OneHotEncoder {
             let mut output_col = 0;
             for col in 0..cols {
                 let value = x.data()[row * cols + col];
-                if let Some(position) = categories[col]
-                    .iter()
-                    .position(|category| category.total_cmp(&value).is_eq())
-                {
-                    data[row * encoded_cols + output_col + position] = 1.0;
-                } else if self.handle_unknown == HandleUnknown::Error {
-                    return Err(PreprocessingError::UnknownCategory {
-                        feature_index: col,
-                        value,
-                    });
+                match categories[col].binary_search_by(|category| category.total_cmp(&value)) {
+                    Ok(position) => {
+                        data[row * encoded_cols + output_col + position] = 1.0;
+                    }
+                    Err(_) if self.handle_unknown == HandleUnknown::Error => {
+                        return Err(PreprocessingError::UnknownCategory {
+                            feature_index: col,
+                            value,
+                        });
+                    }
+                    Err(_) => {}
                 }
                 output_col += feature_sizes[col];
             }
@@ -157,16 +158,23 @@ impl OneHotEncoder {
                 let width = feature_sizes[col];
                 let segment = &x.data()[row * encoded_cols + encoded_offset
                     ..row * encoded_cols + encoded_offset + width];
-                let active = segment
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(index, value)| (*value != 0.0).then_some(index))
-                    .collect::<Vec<_>>();
+                let mut active = None;
+                let mut multiple = false;
+                for (index, value) in segment.iter().enumerate() {
+                    if *value == 0.0 {
+                        continue;
+                    }
+                    if active.is_some() {
+                        multiple = true;
+                        break;
+                    }
+                    active = Some(index);
+                }
 
-                let value = match active.as_slice() {
-                    [index] => categories[col][*index],
-                    [] if self.handle_unknown == HandleUnknown::Ignore => f64::NAN,
-                    [] => {
+                let value = match (active, multiple) {
+                    (Some(index), false) => categories[col][index],
+                    (None, false) if self.handle_unknown == HandleUnknown::Ignore => f64::NAN,
+                    (None, false) => {
                         return Err(PreprocessingError::InvalidEncodedRow {
                             sample_index: row,
                             feature_index: col,

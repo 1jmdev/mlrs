@@ -99,12 +99,5 @@ fn shuffle_indices_unseeded(indices: &mut [usize]) {
 }
 
 fn shuffle_indices_with_rng(indices: &mut [usize], rng: &mut RandomState) {
-    let data = indices
-        .iter()
-        .map(|&value| value as f64)
-        .collect::<Vec<_>>();
-    let shuffled = rng.permutation(&Array::array(&data));
-    for (slot, &value) in indices.iter_mut().zip(shuffled.data()) {
-        *slot = value as usize;
-    }
+    rng.shuffle_indices(indices);
 }

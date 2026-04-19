@@ -37,6 +37,10 @@ impl RandomState {
         }
     }
 
+    pub fn shuffle_indices(&mut self, indices: &mut [usize]) {
+        self.shuffle(indices);
+    }
+
     pub fn random(&mut self, shape: &[usize]) -> Array {
         let size = compute_size(shape);
         let mut data = Vec::with_capacity(size);

@@ -1,8 +1,10 @@
 use crate::darray::Array;
 
+use rayon::prelude::*;
+
 use super::super::common::{
-    LinearModelError, finalize_parameters, fit_lasso_coefficients, predict_from_parameters,
-    prepare_training_data,
+    LinearModelError, compute_gram_and_xty, finalize_parameters, predict_from_parameters,
+    prepare_training_data, scaled_add_assign, soft_threshold,
 };
 
 /// Fits L1-regularized linear regression models with coordinate descent.
@@ -139,4 +141,82 @@ impl crate::metrics::SupervisedEstimator for Lasso {
     fn score(&self, x: &Array, y: &Array) -> Result<f64, Self::Error> {
         Lasso::score(self, x, y)
     }
+}
+
+fn fit_lasso_coefficients(x: &Array, y: &Array, alpha: f64, max_iter: usize, tol: f64) -> Array {
+    let n_features = x.shape()[1];
+    let n_targets = y.shape()[1];
+    let n_samples = x.shape()[0];
+    let (gram, xty) = compute_gram_and_xty(x, y);
+
+    let feature_norms = (0..n_features)
+        .map(|feature| gram[feature * n_features + feature])
+        .collect::<Vec<_>>();
+    let coefficients = (0..n_targets)
+        .into_par_iter()
+        .map(|target| {
+            let target_xty = (0..n_features)
+                .map(|feature| xty[feature * n_targets + target])
+                .collect::<Vec<_>>();
+            fit_lasso_target(
+                &gram,
+                &target_xty,
+                &feature_norms,
+                alpha,
+                max_iter,
+                tol,
+                n_features,
+                n_samples,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let mut data = vec![0.0; n_features * n_targets];
+    for (target, values) in coefficients.into_iter().enumerate() {
+        for (feature, value) in values.into_iter().enumerate() {
+            data[feature * n_targets + target] = value;
+        }
+    }
+    Array::from_shape_vec(&[n_features, n_targets], data)
+}
+
+fn fit_lasso_target(
+    gram: &[f64],
+    xty: &[f64],
+    feature_norms: &[f64],
+    alpha: f64,
+    max_iter: usize,
+    tol: f64,
+    n_features: usize,
+    n_samples: usize,
+) -> Vec<f64> {
+    let mut coefficients = vec![0.0; n_features];
+    let mut correlations = vec![0.0; n_features];
+    let penalty = alpha * n_samples as f64;
+
+    for _ in 0..max_iter {
+        let mut max_update = 0.0_f64;
+        for feature in 0..n_features {
+            let norm = feature_norms[feature];
+            if norm <= f64::EPSILON {
+                continue;
+            }
+
+            let old = coefficients[feature];
+            let rho = xty[feature] - (correlations[feature] - norm * old);
+            let updated = soft_threshold(rho, penalty) / norm;
+            let delta = updated - old;
+            if delta != 0.0 {
+                coefficients[feature] = updated;
+                let row = &gram[feature * n_features..(feature + 1) * n_features];
+                scaled_add_assign(&mut correlations, row, delta);
+                max_update = max_update.max(delta.abs());
+            }
+        }
+        if max_update <= tol {
+            break;
+        }
+    }
+
+    coefficients
 }

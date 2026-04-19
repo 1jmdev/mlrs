@@ -11,13 +11,6 @@ pub(crate) struct PreparedTargets {
     pub(crate) is_vector: bool,
 }
 
-/// Stores validated class labels and their encoded indices.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct PreparedClasses {
-    pub(crate) classes: Vec<f64>,
-    pub(crate) encoded: Vec<usize>,
-}
-
 /// Validates that the feature input is a two-dimensional matrix.
 pub(crate) fn validate_features(x: &Array) -> Result<(), LinearModelError> {
     if !x.is_matrix() {
@@ -62,44 +55,6 @@ pub(crate) fn prepare_targets(x: &Array, y: &Array) -> Result<PreparedTargets, L
         }
         _ => Err(LinearModelError::InvalidTargetShape(y.shape().to_vec())),
     }
-}
-
-/// Validates a one-dimensional label vector and encodes distinct classes.
-pub(crate) fn prepare_class_labels(
-    x: &Array,
-    y: &Array,
-) -> Result<PreparedClasses, LinearModelError> {
-    if !y.is_vector() || y.is_empty() {
-        return Err(LinearModelError::InvalidLabelShape(y.shape().to_vec()));
-    }
-    if y.len() != x.shape()[0] {
-        return Err(LinearModelError::SampleCountMismatch {
-            x_samples: x.shape()[0],
-            y_samples: y.len(),
-        });
-    }
-    if y.data().iter().any(|value| !value.is_finite()) {
-        return Err(LinearModelError::InvalidLabelShape(y.shape().to_vec()));
-    }
-
-    let mut classes = y.to_vec();
-    classes.sort_by(f64::total_cmp);
-    classes.dedup_by(|left, right| left.total_cmp(right).is_eq());
-    if classes.len() < 2 {
-        return Err(LinearModelError::InvalidClassCount(classes.len()));
-    }
-
-    let encoded = y
-        .data()
-        .iter()
-        .map(|value| {
-            classes
-                .binary_search_by(|class| class.total_cmp(value))
-                .map_err(|_| LinearModelError::InvalidLabelShape(y.shape().to_vec()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(PreparedClasses { classes, encoded })
 }
 
 /// Formats learned coefficients to match the original target dimensionality.

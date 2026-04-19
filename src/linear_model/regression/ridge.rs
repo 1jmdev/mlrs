@@ -1,8 +1,8 @@
 use crate::darray::Array;
 
 use super::super::common::{
-    LinearModelError, finalize_parameters, fit_ridge_coefficients, predict_from_parameters,
-    prepare_training_data,
+    LinearModelError, cholesky_decompose, cholesky_solve, compute_gram_and_xty,
+    finalize_parameters, predict_from_parameters, prepare_training_data,
 };
 
 /// Fits L2-regularized linear regression models.
@@ -110,4 +110,28 @@ impl crate::metrics::SupervisedEstimator for Ridge {
     fn score(&self, x: &Array, y: &Array) -> Result<f64, Self::Error> {
         Ridge::score(self, x, y)
     }
+}
+
+fn fit_ridge_coefficients(x: &Array, y: &Array, alpha: f64) -> Result<Array, LinearModelError> {
+    let n_features = x.shape()[1];
+    let n_targets = y.shape()[1];
+    let (mut gram, xty) = compute_gram_and_xty(x, y);
+
+    for feature in 0..n_features {
+        gram[feature * n_features + feature] += alpha;
+    }
+
+    let cholesky = cholesky_decompose(&gram, n_features)?;
+    let mut coefficients = vec![0.0; n_features * n_targets];
+    for target in 0..n_targets {
+        let rhs = (0..n_features)
+            .map(|feature| xty[feature * n_targets + target])
+            .collect::<Vec<_>>();
+        let solution = cholesky_solve(&cholesky, &rhs, n_features);
+        for (feature, value) in solution.into_iter().enumerate() {
+            coefficients[feature * n_targets + target] = value;
+        }
+    }
+
+    Ok(Array::from_shape_vec(&[n_features, n_targets], coefficients))
 }

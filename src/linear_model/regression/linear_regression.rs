@@ -1,8 +1,11 @@
 use crate::darray::Array;
 
+use matrixmultiply::dgemm;
+
 use super::super::common::{
-    LinearModelError, finalize_parameters, fit_linear_coefficients, fit_ridge_coefficients,
-    predict_from_parameters, prepare_targets, prepare_training_data,
+    LinearModelError, cholesky_decompose, cholesky_solve, compute_gram_and_xty,
+    finalize_parameters, predict_from_parameters, prepare_targets, prepare_training_data,
+    scaled_sub_assign, subtract_in_place,
 };
 
 /// Fits ordinary least-squares linear regression models.
@@ -90,10 +93,8 @@ impl LinearRegression {
             return Err(LinearModelError::InvalidLearningRate(self.learning_rate));
         }
         let training = prepare_training_data(x, y, self.fit_intercept)?;
-        let coefficients =
-            fit_ridge_coefficients(&training.x, &training.y, 0.0).unwrap_or_else(|_| {
-                fit_linear_coefficients(&training.x, &training.y, self.epochs, self.learning_rate)
-            });
+        let coefficients = fit_normal_equation_coefficients(&training.x, &training.y)
+            .unwrap_or_else(|_| fit_linear_coefficients(&training.x, &training.y, self.epochs, self.learning_rate));
         let (coef, intercept) = finalize_parameters(
             &coefficients,
             &training.prepared_y,
@@ -149,4 +150,77 @@ impl crate::metrics::SupervisedEstimator for LinearRegression {
     fn score(&self, x: &Array, y: &Array) -> Result<f64, Self::Error> {
         LinearRegression::score(self, x, y)
     }
+}
+
+fn fit_normal_equation_coefficients(x: &Array, y: &Array) -> Result<Array, LinearModelError> {
+    let n_features = x.shape()[1];
+    let n_targets = y.shape()[1];
+    let (gram, xty) = compute_gram_and_xty(x, y);
+    let cholesky = cholesky_decompose(&gram, n_features)?;
+    let mut coefficients = vec![0.0; n_features * n_targets];
+
+    for target in 0..n_targets {
+        let rhs = (0..n_features)
+            .map(|feature| xty[feature * n_targets + target])
+            .collect::<Vec<_>>();
+        let solution = cholesky_solve(&cholesky, &rhs, n_features);
+        for (feature, value) in solution.into_iter().enumerate() {
+            coefficients[feature * n_targets + target] = value;
+        }
+    }
+
+    Ok(Array::from_shape_vec(&[n_features, n_targets], coefficients))
+}
+
+fn fit_linear_coefficients(x: &Array, y: &Array, epochs: usize, learning_rate: f64) -> Array {
+    let n_samples = x.shape()[0];
+    let n_features = x.shape()[1];
+    let n_targets = y.shape()[1];
+    let mut coefficients = vec![0.0; n_features * n_targets];
+    let mut residuals = vec![0.0; n_samples * n_targets];
+    let mut gradient = vec![0.0; n_features * n_targets];
+    let step_size = learning_rate / n_samples as f64;
+
+    for _ in 0..epochs {
+        unsafe {
+            dgemm(
+                n_samples,
+                n_features,
+                n_targets,
+                1.0,
+                x.data.as_ptr(),
+                n_features as isize,
+                1,
+                coefficients.as_ptr(),
+                n_targets as isize,
+                1,
+                0.0,
+                residuals.as_mut_ptr(),
+                n_targets as isize,
+                1,
+            );
+        }
+        subtract_in_place(&mut residuals, &y.data);
+        unsafe {
+            dgemm(
+                n_features,
+                n_samples,
+                n_targets,
+                1.0,
+                x.data.as_ptr(),
+                1,
+                n_features as isize,
+                residuals.as_ptr(),
+                n_targets as isize,
+                1,
+                0.0,
+                gradient.as_mut_ptr(),
+                n_targets as isize,
+                1,
+            );
+        }
+        scaled_sub_assign(&mut coefficients, &gradient, step_size);
+    }
+
+    Array::from_shape_vec(&[n_features, n_targets], coefficients)
 }

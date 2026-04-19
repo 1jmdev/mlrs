@@ -2,12 +2,11 @@ use crate::darray::Array;
 
 use matrixmultiply::dgemm;
 use rayon::prelude::*;
-use wide::f64x4;
 
+use super::dot_simd;
 use super::LinearModelError;
 use super::validation::validate_features;
 
-const SIMD_WIDTH: usize = 4;
 const PAR_THRESHOLD: usize = 16_384;
 
 pub(crate) fn predict_from_parameters(
@@ -87,29 +86,4 @@ fn predict_multi_target(x: &Array, coefficients: &Array, intercepts: &Array) -> 
         }
     }
     Array::from_shape_vec(&[rows, cols], data)
-}
-
-fn dot_simd(left: &[f64], right: &[f64]) -> f64 {
-    let simd_len = left.len() / SIMD_WIDTH * SIMD_WIDTH;
-    let mut accum = f64x4::splat(0.0);
-    for offset in (0..simd_len).step_by(SIMD_WIDTH) {
-        accum += f64x4::from([
-            left[offset],
-            left[offset + 1],
-            left[offset + 2],
-            left[offset + 3],
-        ]) * f64x4::from([
-            right[offset],
-            right[offset + 1],
-            right[offset + 2],
-            right[offset + 3],
-        ]);
-    }
-    let partials: [f64; SIMD_WIDTH] = accum.into();
-    partials.into_iter().sum::<f64>()
-        + left[simd_len..]
-            .iter()
-            .zip(&right[simd_len..])
-            .map(|(left_value, right_value)| left_value * right_value)
-            .sum::<f64>()
 }

@@ -139,6 +139,19 @@ pub(crate) fn sum_simd(values: &[f64]) -> f64 {
     }
 }
 
+pub(crate) fn clone_data_parallel(values: &[f64]) -> Vec<f64> {
+    let mut output = vec![0.0; values.len()];
+    if values.len() >= PAR_THRESHOLD {
+        output
+            .par_chunks_mut(PAR_CHUNK_LEN)
+            .zip(values.par_chunks(PAR_CHUNK_LEN))
+            .for_each(|(out, input)| out.copy_from_slice(input));
+    } else {
+        output.copy_from_slice(values);
+    }
+    output
+}
+
 fn sum_simd_chunk(values: &[f64]) -> f64 {
     let simd_len = values.len() / SIMD_WIDTH * SIMD_WIDTH;
     let mut accum = f64x4::splat(0.0);

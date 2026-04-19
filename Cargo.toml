@@ -125,3 +125,8 @@ path = "benches/metrics/regression_bench.rs"
 name = "metrics_model_selection"
 harness = false
 path = "benches/metrics/model_selection_bench.rs"
+
+[[bench]]
+name = "dev"
+harness = false
+path = "benches/dev.rs"

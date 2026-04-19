@@ -54,11 +54,9 @@ where
         .into_par_iter()
         .map(|(start, end)| {
             let test_indices = &indices[start..end];
-            let train_indices = indices[..start]
-                .iter()
-                .chain(indices[end..].iter())
-                .copied()
-                .collect::<Vec<_>>();
+            let mut train_indices = Vec::with_capacity(samples - test_indices.len());
+            train_indices.extend_from_slice(&indices[..start]);
+            train_indices.extend_from_slice(&indices[end..]);
 
             let x_train = x.take(&train_indices, 0);
             let y_train = y.take(&train_indices, 0);

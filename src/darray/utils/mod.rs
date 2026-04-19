@@ -8,4 +8,6 @@ pub(crate) use layout::{
     reduced_shape, validate_shape_data,
 };
 pub(crate) use mapping::{binary_map, reduce_axis, ternary_map, unary_map};
-pub(crate) use simd::{binary_map_same_shape_simd, dot_simd, sum_simd, unary_map_simd};
+pub(crate) use simd::{
+    binary_map_same_shape_simd, clone_data_parallel, dot_simd, sum_simd, unary_map_simd,
+};

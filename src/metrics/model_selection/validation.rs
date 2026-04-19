@@ -59,6 +59,12 @@ pub(crate) fn resolve_split_sizes(
             details: "resolved sizes exceed the number of samples",
         });
     }
+    if train_size.is_some() && test_size.is_some() && train + test != samples {
+        return Err(MetricsError::InvalidSplitSize {
+            name: "train_size/test_size",
+            details: "when both are set, resolved sizes must sum to n_samples",
+        });
+    }
     Ok((train, test))
 }
 

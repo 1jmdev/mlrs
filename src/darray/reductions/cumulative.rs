@@ -47,23 +47,25 @@ impl Array {
     {
         assert!(axis < self.ndim(), "axis {axis} out of bounds");
         let (inner, outer, axis_len) = axis_inner_outer(&self.shape, axis);
-        let mut data = self.data.clone();
+        let mut data = vec![0.0; self.data.len()];
 
         if inner == 1 {
             if outer >= PAR_THRESHOLD {
-                data.par_chunks_mut(axis_len).for_each(|chunk| {
+                data.par_chunks_mut(axis_len)
+                    .zip(self.data.par_chunks(axis_len))
+                    .for_each(|(output, input)| {
                     let mut running = init;
-                    for value in chunk {
-                        accumulate(&mut running, *value);
-                        *value = running;
+                    for (out, &value) in output.iter_mut().zip(input.iter()) {
+                        accumulate(&mut running, value);
+                        *out = running;
                     }
                 });
             } else {
-                for chunk in data.chunks_mut(axis_len) {
+                for (output, input) in data.chunks_mut(axis_len).zip(self.data.chunks(axis_len)) {
                     let mut running = init;
-                    for value in chunk {
-                        accumulate(&mut running, *value);
-                        *value = running;
+                    for (out, &value) in output.iter_mut().zip(input.iter()) {
+                        accumulate(&mut running, value);
+                        *out = running;
                     }
                 }
             }

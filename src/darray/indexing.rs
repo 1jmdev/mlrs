@@ -1,5 +1,6 @@
 use super::Array;
-use super::utils::{axis_inner_outer, index_to_offset};
+use super::utils::{PAR_THRESHOLD, axis_inner_outer, index_to_offset};
+use rayon::prelude::*;
 
 impl Array {
     /// Returns the value at a multi-dimensional index.
@@ -57,17 +58,71 @@ impl Array {
 
         let mut shape = self.shape.clone();
         shape[axis] = indices.len();
-        let mut data = Vec::with_capacity(shape.iter().product());
+        let output_len = shape.iter().product::<usize>();
+        if output_len == 0 {
+            return Self::from_shape_vec(&shape, Vec::new());
+        }
 
-        for outer_index in 0..outer {
-            for &index in indices {
-                assert!(
-                    index < axis_len,
-                    "index {index} out of bounds for axis {axis}"
-                );
-                let start = (outer_index * axis_len + index) * inner;
-                let end = start + inner;
-                data.extend_from_slice(&self.data[start..end]);
+        if inner == 1 {
+            let mut data = vec![0.0; output_len];
+            if output_len >= PAR_THRESHOLD {
+                data.par_chunks_mut(indices.len())
+                    .enumerate()
+                    .for_each(|(outer_index, chunk)| {
+                        for (position, &index) in indices.iter().enumerate() {
+                            assert!(
+                                index < axis_len,
+                                "index {index} out of bounds for axis {axis}"
+                            );
+                            chunk[position] = self.data[outer_index * axis_len + index];
+                        }
+                    });
+            } else {
+                for (outer_index, chunk) in data.chunks_mut(indices.len()).enumerate() {
+                    for (position, &index) in indices.iter().enumerate() {
+                        assert!(
+                            index < axis_len,
+                            "index {index} out of bounds for axis {axis}"
+                        );
+                        chunk[position] = self.data[outer_index * axis_len + index];
+                    }
+                }
+            }
+            return Self::from_shape_vec(&shape, data);
+        }
+
+        let mut data = vec![0.0; output_len];
+
+        if output_len >= PAR_THRESHOLD && outer > 1 {
+            data.par_chunks_mut(indices.len() * inner)
+                .enumerate()
+                .for_each(|(outer_index, output_chunk)| {
+                    for (position, &index) in indices.iter().enumerate() {
+                        assert!(
+                            index < axis_len,
+                            "index {index} out of bounds for axis {axis}"
+                        );
+                        let source_start = (outer_index * axis_len + index) * inner;
+                        let dest_start = position * inner;
+                        output_chunk[dest_start..dest_start + inner]
+                            .copy_from_slice(&self.data[source_start..source_start + inner]);
+                    }
+                });
+        } else {
+            for outer_index in 0..outer {
+                let output_chunk_start = outer_index * indices.len() * inner;
+                let output_chunk_end = output_chunk_start + indices.len() * inner;
+                let output_chunk = &mut data[output_chunk_start..output_chunk_end];
+                for (position, &index) in indices.iter().enumerate() {
+                    assert!(
+                        index < axis_len,
+                        "index {index} out of bounds for axis {axis}"
+                    );
+                    let source_start = (outer_index * axis_len + index) * inner;
+                    let dest_start = position * inner;
+                    output_chunk[dest_start..dest_start + inner]
+                        .copy_from_slice(&self.data[source_start..source_start + inner]);
+                }
             }
         }
 
@@ -84,23 +139,55 @@ impl Array {
         let slice_len = end - start;
         let mut shape = self.shape.clone();
         shape[axis] = slice_len;
+        let output_len = shape.iter().product::<usize>();
+        if output_len == 0 {
+            return Self::from_shape_vec(&shape, Vec::new());
+        }
 
         if inner == 1 {
-            let mut data = Vec::with_capacity(shape.iter().product());
-            for outer_index in 0..outer {
-                let start_offset = (outer_index * axis_len + start) * inner;
-                let end_offset = start_offset + slice_len;
-                data.extend_from_slice(&self.data[start_offset..end_offset]);
+            let mut data = vec![0.0; output_len];
+            if output_len >= PAR_THRESHOLD {
+                data.par_chunks_mut(slice_len)
+                    .enumerate()
+                    .for_each(|(outer_index, chunk)| {
+                        let start_offset = outer_index * axis_len + start;
+                        let end_offset = start_offset + slice_len;
+                        chunk.copy_from_slice(&self.data[start_offset..end_offset]);
+                    });
+            } else {
+                for (outer_index, chunk) in data.chunks_mut(slice_len).enumerate() {
+                    let start_offset = outer_index * axis_len + start;
+                    let end_offset = start_offset + slice_len;
+                    chunk.copy_from_slice(&self.data[start_offset..end_offset]);
+                }
             }
             return Self::from_shape_vec(&shape, data);
         }
 
-        let mut data = Vec::with_capacity(shape.iter().product());
-        for outer_index in 0..outer {
-            for index in start..end {
-                let start_offset = (outer_index * axis_len + index) * inner;
-                let end_offset = start_offset + inner;
-                data.extend_from_slice(&self.data[start_offset..end_offset]);
+        let mut data = vec![0.0; output_len];
+        let output_chunk_len = slice_len * inner;
+        if output_len >= PAR_THRESHOLD && outer > 1 {
+            data.par_chunks_mut(output_chunk_len)
+                .enumerate()
+                .for_each(|(outer_index, output_chunk)| {
+                    for (position, index) in (start..end).enumerate() {
+                        let source_start = (outer_index * axis_len + index) * inner;
+                        let dest_start = position * inner;
+                        output_chunk[dest_start..dest_start + inner]
+                            .copy_from_slice(&self.data[source_start..source_start + inner]);
+                    }
+                });
+        } else {
+            for outer_index in 0..outer {
+                let output_chunk_start = outer_index * output_chunk_len;
+                let output_chunk_end = output_chunk_start + output_chunk_len;
+                let output_chunk = &mut data[output_chunk_start..output_chunk_end];
+                for (position, index) in (start..end).enumerate() {
+                    let source_start = (outer_index * axis_len + index) * inner;
+                    let dest_start = position * inner;
+                    output_chunk[dest_start..dest_start + inner]
+                        .copy_from_slice(&self.data[source_start..source_start + inner]);
+                }
             }
         }
 

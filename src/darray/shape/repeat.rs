@@ -1,5 +1,5 @@
 use super::super::Array;
-use super::super::utils::{axis_inner_outer, compute_size, compute_strides};
+use super::super::utils::{axis_inner_outer, clone_data_parallel, compute_size, compute_strides};
 use smallvec::SmallVec;
 
 impl Array {
@@ -39,6 +39,37 @@ impl Array {
 
     /// Tiles an array across each axis.
     pub fn tile(&self, reps: &[usize]) -> Self {
+        if self.ndim() == 2 && reps.len() == 2 {
+            let row_repeat = reps[0];
+            let col_repeat = reps[1];
+            if row_repeat == 1 && col_repeat == 1 {
+                return self.copy();
+            }
+
+            let rows = self.shape[0];
+            let cols = self.shape[1];
+            let target_rows = rows * row_repeat;
+            let target_cols = cols * col_repeat;
+            let mut data = vec![0.0; target_rows * target_cols];
+            let mut expanded_row = vec![0.0; target_cols];
+
+            for src_row in 0..rows {
+                let source = &self.data[src_row * cols..(src_row + 1) * cols];
+                for repeat_index in 0..col_repeat {
+                    let start = repeat_index * cols;
+                    expanded_row[start..start + cols].copy_from_slice(source);
+                }
+
+                for repeat_block in 0..row_repeat {
+                    let out_row = repeat_block * rows + src_row;
+                    let output_row = &mut data[out_row * target_cols..(out_row + 1) * target_cols];
+                    output_row.copy_from_slice(&expanded_row);
+                }
+            }
+
+            return Self::from_shape_vec(&[target_rows, target_cols], data);
+        }
+
         let ndim = self.ndim().max(reps.len());
         let mut source_shape = SmallVec::<[usize; 6]>::from_elem(1, ndim - self.ndim());
         source_shape.extend_from_slice(&self.shape);
@@ -55,14 +86,14 @@ impl Array {
         let size = compute_size(&target_shape);
 
         if source_shape == target_shape {
-            return Self {
-                data: self.data.clone(),
-                shape: target_shape,
-                strides: target_strides,
-            };
+                return Self {
+                    data: clone_data_parallel(&self.data),
+                    shape: target_shape,
+                    strides: target_strides,
+                };
         }
 
-        let mut data = self.data.clone();
+        let mut data = clone_data_parallel(&self.data);
         let mut current_shape = source_shape.clone();
 
         for axis in 0..ndim {

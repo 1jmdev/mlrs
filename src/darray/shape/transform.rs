@@ -1,5 +1,5 @@
 use super::super::Array;
-use super::super::utils::{compute_size, compute_strides, infer_shape};
+use super::super::utils::{clone_data_parallel, compute_size, compute_strides, infer_shape};
 use smallvec::SmallVec;
 
 impl Array {
@@ -17,7 +17,7 @@ impl Array {
         );
 
         Self {
-            data: self.data.clone(),
+            data: clone_data_parallel(&self.data),
             shape: shape.clone(),
             strides: compute_strides(&shape),
         }
@@ -26,7 +26,7 @@ impl Array {
     /// Returns a flattened copy of the array.
     pub fn flatten(&self) -> Self {
         Self {
-            data: self.data.clone(),
+            data: clone_data_parallel(&self.data),
             shape: [self.data.len()].into_iter().collect(),
             strides: compute_strides(&[self.data.len()]),
         }
@@ -39,6 +39,28 @@ impl Array {
 
     /// Reverses the axes of the array.
     pub fn transpose(&self) -> Self {
+        if self.ndim() == 2 {
+            let rows = self.shape[0];
+            let cols = self.shape[1];
+            let mut data = vec![0.0; self.data.len()];
+            let block = 32usize;
+
+            for row_block in (0..rows).step_by(block) {
+                let row_limit = rows.min(row_block + block);
+                for col_block in (0..cols).step_by(block) {
+                    let col_limit = cols.min(col_block + block);
+                    for row in row_block..row_limit {
+                        let row_offset = row * cols;
+                        for col in col_block..col_limit {
+                            data[col * rows + row] = self.data[row_offset + col];
+                        }
+                    }
+                }
+            }
+
+            return Self::from_shape_vec(&[cols, rows], data);
+        }
+
         let axes = (0..self.ndim()).rev().collect::<SmallVec<[usize; 6]>>();
         self.permute_axes(&axes)
     }
@@ -137,7 +159,7 @@ impl Array {
         shape.insert(axis, 1);
 
         Self {
-            data: self.data.clone(),
+            data: clone_data_parallel(&self.data),
             shape: shape.clone(),
             strides: compute_strides(&shape),
         }
@@ -153,7 +175,7 @@ impl Array {
             .collect::<SmallVec<[usize; 6]>>();
 
         Self {
-            data: self.data.clone(),
+            data: clone_data_parallel(&self.data),
             shape: shape.clone(),
             strides: compute_strides(&shape),
         }
